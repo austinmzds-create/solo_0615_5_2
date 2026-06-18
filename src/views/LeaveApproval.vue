@@ -176,6 +176,38 @@ const handleRejectConfirm = async () => {
   })
 }
 
+const handleBatchReject = async () => {
+  const count = pendingSelectedIds.value.length
+  if (count === 0) {
+    ElMessage.warning('请先勾选待审批的申请')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认批量驳回 ${count} 条待审批申请？`,
+      '批量驳回确认',
+      {
+        confirmButtonText: '确认驳回',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    const now = new Date().toLocaleString('zh-CN')
+    const idSet = new Set(pendingSelectedIds.value)
+    applications.value.forEach((a) => {
+      if (idSet.has(a.id)) {
+        a.status = 'rejected'
+        a.approvedAt = now
+      }
+    })
+    saveApplications(applications.value)
+    clearSelection()
+    ElMessage.success(`已批量驳回 ${count} 条申请`)
+  } catch {
+    // cancelled
+  }
+}
+
 const handleLogout = () => {
   localStorage.removeItem('smart_campus_current_user')
   router.replace('/login')
@@ -336,6 +368,17 @@ const handleBatchApprove = async () => {
                 @click="handleBatchApprove"
               >
                 批量通过
+                <span v-if="pendingSelectedIds.length > 0">
+                  ({{ pendingSelectedIds.length }})
+                </span>
+              </el-button>
+              <el-button
+                type="danger"
+                :icon="Close"
+                :disabled="pendingSelectedIds.length === 0"
+                @click="handleBatchReject"
+              >
+                批量驳回
                 <span v-if="pendingSelectedIds.length > 0">
                   ({{ pendingSelectedIds.length }})
                 </span>
