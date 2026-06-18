@@ -176,36 +176,52 @@ const handleRejectConfirm = async () => {
   })
 }
 
-const handleBatchReject = async () => {
+const batchUpdateStatus = async (
+  targetStatus: LeaveStatus,
+  options: {
+    confirmMessage: string
+    confirmTitle: string
+    confirmButtonText: string
+    successMessage: string
+    type: 'success' | 'warning' | 'info' | 'error'
+  }
+) => {
   const count = pendingSelectedIds.value.length
   if (count === 0) {
     ElMessage.warning('请先勾选待审批的申请')
     return
   }
   try {
-    await ElMessageBox.confirm(
-      `确认批量驳回 ${count} 条待审批申请？`,
-      '批量驳回确认',
-      {
-        confirmButtonText: '确认驳回',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
+    await ElMessageBox.confirm(options.confirmMessage, options.confirmTitle, {
+      confirmButtonText: options.confirmButtonText,
+      cancelButtonText: '取消',
+      type: options.type
+    })
     const now = new Date().toLocaleString('zh-CN')
     const idSet = new Set(pendingSelectedIds.value)
     applications.value.forEach((a) => {
       if (idSet.has(a.id)) {
-        a.status = 'rejected'
+        a.status = targetStatus
         a.approvedAt = now
       }
     })
     saveApplications(applications.value)
     clearSelection()
-    ElMessage.success(`已批量驳回 ${count} 条申请`)
+    ElMessage.success(options.successMessage)
   } catch {
     // cancelled
   }
+}
+
+const handleBatchReject = async () => {
+  const count = pendingSelectedIds.value.length
+  await batchUpdateStatus('rejected', {
+    confirmMessage: `确认批量驳回 ${count} 条待审批申请？`,
+    confirmTitle: '批量驳回确认',
+    confirmButtonText: '确认驳回',
+    successMessage: `已批量驳回 ${count} 条申请`,
+    type: 'warning'
+  })
 }
 
 const handleLogout = () => {
@@ -229,34 +245,13 @@ const pendingSelectedIds = computed(() => {
 
 const handleBatchApprove = async () => {
   const count = pendingSelectedIds.value.length
-  if (count === 0) {
-    ElMessage.warning('请先勾选待审批的申请')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(
-      `确认批量通过 ${count} 条待审批申请？`,
-      '批量审批确认',
-      {
-        confirmButtonText: '确认通过',
-        cancelButtonText: '取消',
-        type: 'success'
-      }
-    )
-    const now = new Date().toLocaleString('zh-CN')
-    const idSet = new Set(pendingSelectedIds.value)
-    applications.value.forEach((a) => {
-      if (idSet.has(a.id)) {
-        a.status = 'approved'
-        a.approvedAt = now
-      }
-    })
-    saveApplications(applications.value)
-    clearSelection()
-    ElMessage.success(`已批量通过 ${count} 条申请`)
-  } catch {
-    // cancelled
-  }
+  await batchUpdateStatus('approved', {
+    confirmMessage: `确认批量通过 ${count} 条待审批申请？`,
+    confirmTitle: '批量审批确认',
+    confirmButtonText: '确认通过',
+    successMessage: `已批量通过 ${count} 条申请`,
+    type: 'success'
+  })
 }
 </script>
 
