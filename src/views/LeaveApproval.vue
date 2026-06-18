@@ -21,6 +21,8 @@ const rejectDialogVisible = ref(false)
 const currentApplication = ref<LeaveApplication | null>(null)
 const rejectReason = ref('')
 const rejectFormRef = ref<FormInstance>()
+const tableRef = ref()
+const selectedRows = ref<LeaveApplication[]>([])
 
 const filterForm = ref({
   className: '',
@@ -168,6 +170,46 @@ const handleLogout = () => {
   localStorage.removeItem('smart_campus_current_user')
   router.replace('/login')
 }
+
+const handleSelectionChange = (selection: LeaveApplication[]) => {
+  selectedRows.value = selection
+}
+
+const isRowSelectable = (row: LeaveApplication) => {
+  return row.status === 'pending'
+}
+
+const handleBatchApprove = async () => {
+  const pendingSelected = selectedRows.value.filter((r) => r.status === 'pending')
+  if (pendingSelected.length === 0) {
+    ElMessage.warning('请先勾选待审批的申请')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认批量通过 ${pendingSelected.length} 条待审批申请？`,
+      '批量审批确认',
+      {
+        confirmButtonText: '确认通过',
+        cancelButtonText: '取消',
+        type: 'success'
+      }
+    )
+    const now = new Date().toLocaleString('zh-CN')
+    const selectedIds = new Set(pendingSelected.map((r) => r.id))
+    applications.value.forEach((a) => {
+      if (selectedIds.has(a.id)) {
+        a.status = 'approved'
+        a.approvedAt = now
+      }
+    })
+    saveApplications(applications.value)
+    tableRef.value?.clearSelection()
+    ElMessage.success(`已批量通过 ${pendingSelected.length} 条申请`)
+  } catch {
+    // cancelled
+  }
+}
 </script>
 
 <template>
@@ -247,30 +289,53 @@ const handleLogout = () => {
         </el-card>
 
         <el-card class="table-card" shadow="never">
-          <el-tabs v-model="activeTab">
-            <el-tab-pane label="全部" name="all">
-              <template #label>
-                全部 <el-badge :value="tabCounts.all" class="tab-badge" type="info" />
-              </template>
-            </el-tab-pane>
-            <el-tab-pane label="待审批" name="pending">
-              <template #label>
-                待审批 <el-badge :value="tabCounts.pending" class="tab-badge" type="warning" />
-              </template>
-            </el-tab-pane>
-            <el-tab-pane label="已通过" name="approved">
-              <template #label>
-                已通过 <el-badge :value="tabCounts.approved" class="tab-badge" type="success" />
-              </template>
-            </el-tab-pane>
-            <el-tab-pane label="已驳回" name="rejected">
-              <template #label>
-                已驳回 <el-badge :value="tabCounts.rejected" class="tab-badge" type="danger" />
-              </template>
-            </el-tab-pane>
-          </el-tabs>
+          <div class="table-toolbar">
+            <el-tabs v-model="activeTab">
+              <el-tab-pane label="全部" name="all">
+                <template #label>
+                  全部 <el-badge :value="tabCounts.all" class="tab-badge" type="info" />
+                </template>
+              </el-tab-pane>
+              <el-tab-pane label="待审批" name="pending">
+                <template #label>
+                  待审批 <el-badge :value="tabCounts.pending" class="tab-badge" type="warning" />
+                </template>
+              </el-tab-pane>
+              <el-tab-pane label="已通过" name="approved">
+                <template #label>
+                  已通过 <el-badge :value="tabCounts.approved" class="tab-badge" type="success" />
+                </template>
+              </el-tab-pane>
+              <el-tab-pane label="已驳回" name="rejected">
+                <template #label>
+                  已驳回 <el-badge :value="tabCounts.rejected" class="tab-badge" type="danger" />
+                </template>
+              </el-tab-pane>
+            </el-tabs>
+            <div class="batch-actions">
+              <el-button
+                type="success"
+                :icon="Check"
+                :disabled="selectedRows.filter(r => r.status === 'pending').length === 0"
+                @click="handleBatchApprove"
+              >
+                批量通过
+                <span v-if="selectedRows.filter(r => r.status === 'pending').length > 0">
+                  ({{ selectedRows.filter(r => r.status === 'pending').length }})
+                </span>
+              </el-button>
+            </div>
+          </div>
 
-          <el-table :data="filteredApplications" stripe border style="width: 100%">
+          <el-table
+            ref="tableRef"
+            :data="filteredApplications"
+            stripe
+            border
+            style="width: 100%"
+            @selection-change="handleSelectionChange"
+          >
+            <el-table-column type="selection" width="55" align="center" :selectable="isRowSelectable" />
             <el-table-column prop="id" label="申请编号" width="100" />
             <el-table-column prop="studentName" label="学生姓名" width="100" />
             <el-table-column prop="className" label="班级" width="120" />
@@ -429,6 +494,19 @@ const handleLogout = () => {
 
 .table-card :deep(.el-card__body) {
   padding-top: 0;
+}
+
+.table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 16px;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .tab-badge {
