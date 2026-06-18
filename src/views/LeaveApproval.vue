@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
 import { Search, Refresh, View, Check, Close, SwitchButton } from '@element-plus/icons-vue'
@@ -104,8 +104,13 @@ const statusLabel = (status: LeaveStatus) => {
   return map[status]
 }
 
+const clearSelection = () => {
+  selectedIds.value = new Set()
+  tableRef.value?.clearSelection()
+}
+
 const handleSearch = () => {
-  // filtering is reactive via computed
+  clearSelection()
 }
 
 const handleReset = () => {
@@ -115,7 +120,12 @@ const handleReset = () => {
     courseName: '',
     dateRange: null
   }
+  clearSelection()
 }
+
+watch(activeTab, () => {
+  clearSelection()
+})
 
 const handleView = (row: LeaveApplication) => {
   currentApplication.value = row
@@ -180,19 +190,20 @@ const isRowSelectable = (row: LeaveApplication) => {
 }
 
 const pendingSelectedIds = computed(() => {
-  return applications.value
+  return filteredApplications.value
     .filter((a) => a.status === 'pending' && selectedIds.value.has(a.id))
     .map((a) => a.id)
 })
 
 const handleBatchApprove = async () => {
-  if (pendingSelectedIds.value.length === 0) {
+  const count = pendingSelectedIds.value.length
+  if (count === 0) {
     ElMessage.warning('请先勾选待审批的申请')
     return
   }
   try {
     await ElMessageBox.confirm(
-      `确认批量通过 ${pendingSelectedIds.value.length} 条待审批申请？`,
+      `确认批量通过 ${count} 条待审批申请？`,
       '批量审批确认',
       {
         confirmButtonText: '确认通过',
@@ -209,8 +220,8 @@ const handleBatchApprove = async () => {
       }
     })
     saveApplications(applications.value)
-    tableRef.value?.clearSelection()
-    ElMessage.success(`已批量通过 ${pendingSelectedIds.value.length} 条申请`)
+    clearSelection()
+    ElMessage.success(`已批量通过 ${count} 条申请`)
   } catch {
     // cancelled
   }
